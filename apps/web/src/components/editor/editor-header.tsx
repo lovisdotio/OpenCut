@@ -21,6 +21,7 @@ import { FaDiscord } from "react-icons/fa6";
 import { PanelPresetSelector } from "./panel-preset-selector";
 import { ExportButton } from "./export-button";
 import { ThemeToggle } from "../theme-toggle";
+import { FalAiBadge } from "./fal-ai-badge";
 
 export function EditorHeader() {
   const { activeProject, renameProject, deleteProject } = useProjectStore();
@@ -112,7 +113,8 @@ export function EditorHeader() {
   );
 
   const rightContent = (
-    <nav className="flex items-center gap-2">
+    <nav className="flex items-center gap-3">
+      <FalAiBadge />
       <PanelPresetSelector />
       <KeyboardShortcutsHelp />
       <ExportButton />

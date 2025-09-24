@@ -10,6 +10,7 @@ import {
   LucideIcon,
   TypeIcon,
   SettingsIcon,
+  BotIcon,
 } from "lucide-react";
 import { create } from "zustand";
 
@@ -23,7 +24,8 @@ export type Tab =
   | "captions"
   | "filters"
   | "adjustment"
-  | "settings";
+  | "settings"
+  | "contentfill";
 
 export const tabs: { [key in Tab]: { icon: LucideIcon; label: string } } = {
   media: {
@@ -65,6 +67,10 @@ export const tabs: { [key in Tab]: { icon: LucideIcon; label: string } } = {
   settings: {
     icon: SettingsIcon,
     label: "Settings",
+  },
+  contentfill: {
+    icon: BotIcon,
+    label: "Content Fill",
   },
 };
 

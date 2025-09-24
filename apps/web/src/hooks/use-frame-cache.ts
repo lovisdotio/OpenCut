@@ -27,7 +27,7 @@ const __sharedFrameCache: Map<number, CachedFrame> =
 __frameCacheGlobal.__sharedFrameCache = __sharedFrameCache;
 
 export function useFrameCache(options: FrameCacheOptions = {}) {
-  const { maxCacheSize = 300, cacheResolution = 30 } = options; // 10 seconds at 30fps
+  const { maxCacheSize = 150, cacheResolution = 24 } = options; // Reduced cache size and resolution for better performance
 
   const frameCacheRef = useRef(__sharedFrameCache);
 
@@ -118,13 +118,18 @@ export function useFrameCache(options: FrameCacheOptions = {}) {
         canvasSize: activeProject?.canvasSize,
       };
 
-      const hash = {
-        activeElements,
-        projectState,
-        sceneId,
-        time: Math.floor(time * cacheResolution) / cacheResolution,
-      };
-      return JSON.stringify(hash);
+      // Use a more efficient hash calculation
+      const hashParts = [
+        activeElements.length,
+        activeElements.map(e => `${e.id}-${e.type}-${e.startTime}-${e.duration}`).join('|'),
+        projectState.backgroundColor || 'default',
+        projectState.backgroundType || 'default',
+        projectState.canvasSize?.width || 1920,
+        projectState.canvasSize?.height || 1080,
+        sceneId || 'main',
+        Math.floor(time * cacheResolution) / cacheResolution,
+      ];
+      return hashParts.join('::');
     },
     [cacheResolution]
   );

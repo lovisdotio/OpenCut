@@ -1,1 +1,143 @@
-!apps/web/.env.example
+# OpenCut - Cursor IDE Ignore File
+# This file helps Claude focus on relevant code by excluding generated files,
+# dependencies, build artifacts, and other non-essential content.
+
+# === DEPENDENCIES & NODE_MODULES ===
+node_modules/
+.pnp
+.pnp.js
+
+# === BUILD OUTPUTS ===
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# === DATABASE & MIGRATIONS ===
+# Keep schema and migrations for context, but ignore generated files
+*.db
+*.sqlite
+*.sqlite3
+migrations/meta/
+drizzle/
+
+# === CACHE & TEMP FILES ===
+.cache/
+.temp/
+.tmp/
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# === LOGS ===
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# === ENVIRONMENT & SECRETS ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
+
+# === IDE & EDITOR FILES ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === TESTING ===
+coverage/
+.nyc_output
+junit.xml
+test-results/
+playwright-report/
+
+# === PACKAGE MANAGER LOCKS ===
+# Keep bun.lock for dependency tracking
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === MEDIA & ASSETS (Large files) ===
+# Exclude user-uploaded media but keep example assets
+uploads/
+media/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.svg
+# But keep public assets
+!public/**/*
+
+# === DOCKER ===
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+!docker-compose.yaml
+
+# === TAURI (Desktop App) ===
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/Cargo.lock
+
+# === PYTHON (Background Remover) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+*.egg-info/
+
+# === TRANSCRIPTION SERVICE ===
+apps/transcription/models/
+apps/transcription/temp/
+
+# === GENERATED DOCUMENTATION ===
+# Keep source docs but exclude generated ones
+docs/generated/
+*.generated.md
+
+# === BACKUP & RECOVERY ===
+*.backup
+*.bak
+*.old
+*~
+
+# === PERFORMANCE & PROFILING ===
+*.cpuprofile
+*.heapprofile
+.clinic/
+
+# === MISC ===
+.netlify/
+.vercel/
+.firebase/
+*.tgz
+*.tar.gz

@@ -56,7 +56,10 @@ export class VideoCache {
     if (!sinkData.iterator) return null;
 
     try {
-      while (true) {
+      let frameCount = 0;
+      const maxFramesToIterate = 120; // Prevent infinite loops (4 seconds at 30fps)
+      
+      while (frameCount < maxFramesToIterate) {
         const { value: frame, done } = await sinkData.iterator.next();
 
         if (done || !frame) break;
@@ -69,6 +72,7 @@ export class VideoCache {
         }
 
         if (frame.timestamp > targetTime + 1.0) break;
+        frameCount++;
       }
     } catch (error) {
       console.warn("Iterator failed, will restart:", error);
@@ -137,7 +141,7 @@ export class VideoCache {
       }
 
       const sink = new CanvasSink(videoTrack, {
-        poolSize: 3,
+        poolSize: 8, // Increased from 3 to reduce frame seeking overhead
         fit: "contain",
       });
 

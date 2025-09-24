@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { HeaderBase } from "./header-base";
 import Image from "next/image";
 import { ThemeToggle } from "./theme-toggle";
+import { FalAiBadge } from "./editor/fal-ai-badge";
 
 export function Header() {
   const leftContent = (
@@ -22,7 +23,8 @@ export function Header() {
   );
 
   const rightContent = (
-    <nav className="flex items-center gap-2">
+    <nav className="flex items-center gap-3">
+      <FalAiBadge />
       <div className="flex items-center gap-4">
         <Link href="/blog">
           <Button variant="text" className="text-sm p-0">

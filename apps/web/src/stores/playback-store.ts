@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import type { PlaybackState, PlaybackControls } from "@/types/playback";
 import { useTimelineStore } from "@/stores/timeline-store";
+import { useMediaStore } from "@/stores/media-store";
 import { DEFAULT_FPS, useProjectStore } from "./project-store";
+import { videoPreloader } from "@/lib/video-preloader";
 
 interface PlaybackStore extends PlaybackState, PlaybackControls {
   setDuration: (duration: number) => void;
@@ -18,6 +20,13 @@ const startTimer = (store: () => PlaybackStore) => {
     const state = store();
     if (state.isPlaying && state.currentTime < state.duration) {
       const now = performance.now();
+      
+      // Throttle updates to 30fps to reduce overhead
+      if (now - lastUpdate < 33) {
+        playbackTimer = requestAnimationFrame(updateTime);
+        return;
+      }
+      
       const delta = (now - lastUpdate) / 1000; // Convert to seconds
       lastUpdate = now;
 
@@ -56,6 +65,18 @@ const startTimer = (store: () => PlaybackStore) => {
         window.dispatchEvent(
           new CustomEvent("playback-update", { detail: { time: newTime } })
         );
+
+        // Schedule video preloading every 30 frames (1 second at 30fps)
+        if (Math.floor(newTime * 30) % 30 === 0) {
+          const timelineStore = useTimelineStore.getState();
+          const mediaStore = useMediaStore.getState();
+          videoPreloader.schedulePreload({
+            currentTime: newTime,
+            tracks: timelineStore.tracks,
+            mediaFiles: mediaStore.mediaFiles,
+            playbackSpeed: state.speed,
+          });
+        }
       }
     }
     playbackTimer = requestAnimationFrame(updateTime);

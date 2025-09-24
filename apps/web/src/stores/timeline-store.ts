@@ -248,6 +248,11 @@ interface TimelineStore {
     currentTime?: number
   ) => boolean;
   addElementToNewTrack: (item: MediaFile | TextElement | DragData) => boolean;
+  addContentFillResult: (
+    originalTrackId: string,
+    originalElementId: string,
+    newMediaItem: MediaFile
+  ) => void;
 }
 
 export const useTimelineStore = create<TimelineStore>((set, get) => {
@@ -1449,6 +1454,55 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
         muted: false,
       });
       return true;
+    },
+
+    addContentFillResult: (originalTrackId, originalElementId, newMediaItem) => {
+      const { _tracks, addElementToTrack, insertTrackAt } = get();
+      
+      const originalTrackIndex = _tracks.findIndex(t => t.id === originalTrackId);
+      const originalTrack = _tracks[originalTrackIndex];
+      const originalElement = originalTrack?.elements.find(e => e.id === originalElementId);
+
+      if (!originalElement || !originalTrack || originalTrackIndex === -1) {
+        console.error("Could not find original element to add Content Fill result");
+        
+        // Fallback: just add to a new track at the top
+        const newTrackId = insertTrackAt('media', 0);
+        addElementToTrack(newTrackId, {
+          type: 'media',
+          mediaId: newMediaItem.id,
+          name: newMediaItem.name,
+          duration: newMediaItem.duration || 5,
+          startTime: 0,
+          trimStart: 0,
+          trimEnd: 0,
+          muted: false,
+        });
+        return;
+      }
+      
+      // Insert new track directly above the original
+      const newTrackId = insertTrackAt('media', originalTrackIndex);
+      
+      // Add the new element to this track
+      addElementToTrack(newTrackId, {
+        type: 'media',
+        mediaId: newMediaItem.id,
+        name: newMediaItem.name,
+        duration: newMediaItem.duration || originalElement.duration,
+        startTime: originalElement.startTime,
+        trimStart: 0,
+        trimEnd: 0,
+        muted: false,
+      });
+
+      // Select the new element
+      const newTracks = get()._tracks;
+      const newTrack = newTracks.find(t => t.id === newTrackId);
+      if (newTrack?.elements.length) {
+        const newElement = newTrack.elements[newTrack.elements.length - 1];
+        get().selectElement(newTrackId, newElement.id);
+      }
     },
 
     copySelected: () => {

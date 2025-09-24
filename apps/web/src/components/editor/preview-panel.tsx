@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LayoutGuideOverlay } from "./layout-guide-overlay";
+import { MaskOverlay } from "./mask-overlay";
+import { ContentFillLoadingOverlay } from "./content-fill-loading-overlay";
+import { useContentFillStore } from "@/stores/content-fill-store";
 import { Label } from "../ui/label";
 import { SocialsIcon } from "../icons";
 import { PLATFORM_LAYOUTS, type PlatformLayout } from "@/stores/editor-store";
@@ -39,9 +42,10 @@ interface ActiveElement {
 }
 
 export function PreviewPanel() {
-  const { tracks, getTotalDuration, updateTextElement } = useTimelineStore();
+  const { tracks, getTotalDuration, updateTextElement, selectedElements } = useTimelineStore();
   const { mediaFiles } = useMediaStore();
   const { currentTime, toggle, setCurrentTime } = usePlaybackStore();
+  const { jobs, maskDrawing } = useContentFillStore();
   const { isPlaying, volume, muted } = usePlaybackStore();
   const { activeProject } = useProjectStore();
   const { currentScene } = useSceneStore();
@@ -292,6 +296,60 @@ export function PreviewPanel() {
   };
 
   const activeElements = getActiveElements();
+
+  // Get the selected video element for mask overlay
+  const selectedVideoElement = selectedElements.length > 0 
+    ? (() => {
+        const { trackId, elementId } = selectedElements[0];
+        const track = tracks.find(t => t.id === trackId);
+        const element = track?.elements.find(e => e.id === elementId);
+        const mediaFile = element?.type === "media" 
+          ? mediaFiles.find(f => f.id === element.mediaId)
+          : null;
+        return mediaFile?.type === "video" ? mediaFile : null;
+      })()
+    : null;
+
+  // Get active content fill job for the selected element (most recent processing job)
+  const activeContentFillJob = selectedElements.length > 0 
+    ? jobs
+        .filter(job => {
+          const match = job.elementId === selectedElements[0].elementId && 
+                       job.trackId === selectedElements[0].trackId &&
+                       job.status === "processing";
+          if (match) {
+            console.log("Found processing job:", job.id, job.status, job.progress);
+          }
+          return match;
+        })
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] // Most recent
+    : null;
+
+  console.log("Preview panel job detection:", {
+    selectedElementsCount: selectedElements.length,
+    selectedElement: selectedElements[0],
+    totalJobs: jobs.length,
+    processingJobs: jobs.filter(j => j.status === "processing").length,
+    activeJob: activeContentFillJob ? {
+      id: activeContentFillJob.id,
+      status: activeContentFillJob.status,
+      progress: activeContentFillJob.progress
+    } : null
+  });
+
+  // Log the active job for debugging
+  useEffect(() => {
+    if (activeContentFillJob) {
+      console.log("Active content fill job:", {
+        id: activeContentFillJob.id,
+        elementId: activeContentFillJob.elementId,
+        trackId: activeContentFillJob.trackId,
+        status: activeContentFillJob.status,
+        progress: activeContentFillJob.progress,
+        createdAt: activeContentFillJob.createdAt
+      });
+    }
+  }, [activeContentFillJob]);
 
   // Ensure first frame after mount/seek renders immediately
   useEffect(() => {
@@ -744,6 +802,25 @@ export function PreviewPanel() {
               ) : (
                 activeElements.map((elementData) => renderElement(elementData))
               )}
+              <MaskOverlay
+                width={previewDimensions.width}
+                height={previewDimensions.height}
+                canvasSize={canvasSize}
+                videoWidth={selectedVideoElement?.width || canvasSize.width}
+                videoHeight={selectedVideoElement?.height || canvasSize.height}
+              />
+              {activeContentFillJob && (
+                <ContentFillLoadingOverlay
+                  isProcessing={activeContentFillJob.status === "processing"}
+                  progress={activeContentFillJob.progress}
+                  masks={activeContentFillJob.masks}
+                  width={previewDimensions.width}
+                  height={previewDimensions.height}
+                  videoWidth={selectedVideoElement?.width || canvasSize.width}
+                  videoHeight={selectedVideoElement?.height || canvasSize.height}
+                  logs={activeContentFillJob.logs}
+                />
+              )}
               <LayoutGuideOverlay />
             </div>
           ) : null}
@@ -776,6 +853,9 @@ export function PreviewPanel() {
           setCurrentTime={setCurrentTime}
           toggle={toggle}
           getTotalDuration={getTotalDuration}
+          canvasSize={canvasSize}
+          selectedVideoElement={selectedVideoElement}
+          activeContentFillJob={activeContentFillJob}
         />
       )}
     </>
@@ -962,6 +1042,9 @@ function FullscreenPreview({
   setCurrentTime,
   toggle,
   getTotalDuration,
+  canvasSize,
+  selectedVideoElement,
+  activeContentFillJob,
 }: {
   previewDimensions: { width: number; height: number };
   activeProject: any;
@@ -975,6 +1058,9 @@ function FullscreenPreview({
   setCurrentTime: (time: number) => void;
   toggle: () => void;
   getTotalDuration: () => number;
+  canvasSize: { width: number; height: number };
+  selectedVideoElement: any;
+  activeContentFillJob: any;
 }) {
   return (
     <div className="fixed inset-0 z-9999 flex flex-col">
@@ -999,6 +1085,25 @@ function FullscreenPreview({
             activeElements.map((elementData, index) =>
               renderElement(elementData, index)
             )
+          )}
+          <MaskOverlay
+            width={previewDimensions.width}
+            height={previewDimensions.height}
+            canvasSize={canvasSize}
+            videoWidth={selectedVideoElement?.width || canvasSize.width}
+            videoHeight={selectedVideoElement?.height || canvasSize.height}
+          />
+          {activeContentFillJob && (
+            <ContentFillLoadingOverlay
+              isProcessing={activeContentFillJob.status === "processing"}
+              progress={activeContentFillJob.progress}
+              masks={activeContentFillJob.masks}
+              width={previewDimensions.width}
+              height={previewDimensions.height}
+              videoWidth={selectedVideoElement?.width || canvasSize.width}
+              videoHeight={selectedVideoElement?.height || canvasSize.height}
+              logs={activeContentFillJob.logs}
+            />
           )}
           <LayoutGuideOverlay />
         </div>

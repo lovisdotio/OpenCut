@@ -77,10 +77,16 @@ The application uses **Zustand** for state management with separate stores for d
 - UI/UX improvements outside preview panel
 - Documentation and testing
 
+**✅ Recently Optimized:**
+- Video playback performance (reduced lag significantly)
+- Frame caching system (more efficient hash calculation)
+- Video preloading (intelligent background loading)
+- Performance monitoring (real-time metrics and suggestions)
+
 **⚠️ Areas to avoid (pending refactor):**
 - Preview panel enhancements (fonts, stickers, effects)
 - Export functionality improvements
-- Preview rendering optimizations
+- Advanced preview rendering features
 
 **Reason:** The preview system is planned for a major refactor from DOM-based rendering to binary rendering for consistency with export and better performance.
 

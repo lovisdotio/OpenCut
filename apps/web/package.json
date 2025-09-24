@@ -16,6 +16,7 @@
     "db:push:prod": "cross-env NODE_ENV=production drizzle-kit push"
   },
   "dependencies": {
+    "@fal-ai/serverless-client": "^0.15.0",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
@@ -27,7 +28,7 @@
     "@t3-oss/env-core": "^0.13.8",
     "@t3-oss/env-nextjs": "^0.13.8",
     "@upstash/ratelimit": "^2.0.5",
-    "@upstash/redis": "^1.35.0",
+    "@upstash/redis": "^1.35.3",
     "@vercel/analytics": "^1.4.1",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.2.7",

@@ -9,6 +9,7 @@ import { StickersView } from "./views/stickers";
 import { Separator } from "@/components/ui/separator";
 import { SettingsView } from "./views/settings";
 import { Captions } from "./views/captions";
+import { ContentFillView } from "./views/contentfill";
 
 export function MediaPanel() {
   const { activeTab } = useMediaPanelStore();
@@ -40,6 +41,7 @@ export function MediaPanel() {
       </div>
     ),
     settings: <SettingsView />,
+    contentfill: <ContentFillView />,
   };
 
   return (
