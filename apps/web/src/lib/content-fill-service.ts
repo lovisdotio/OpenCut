@@ -12,8 +12,6 @@ import { useMediaStore } from "@/stores/media-store";
 import { useProjectStore } from "@/stores/project-store";
 import { ContentFillJob, MaskShape } from "@/types/content-fill";
 import { createFalProvider, FalProvider } from "@/lib/providers/fal-provider";
-import { trimVideo } from "@/lib/ffmpeg-utils";
-import { generateMaskedSourceVideo } from "@/lib/video-mask-processor";
 import { MediaFile } from "@/types/media";
 
 export function useContentFillService() {
@@ -106,11 +104,6 @@ export function useContentFillService() {
         // Create fal.ai provider
         const provider = createFalProvider(apiKey);
         
-        // Generate mask video from drawn masks
-        contentFillStore.addJobLog(jobId, 'Generating mask video...');
-        contentFillStore.updateJob(jobId, { progress: 10 });
-        
-        // Import the real mask video generator
         const { generateMaskVideo } = await import('@/lib/mask-video-generator');
         
         // Ensure parameters have valid values
@@ -120,48 +113,51 @@ export function useContentFillService() {
           ? "720p" 
           : (parameters.resolution as "480p" | "580p" | "720p") || "720p";
 
-        contentFillStore.addJobLog(jobId, `Generating mask video: ${safeNumFrames} frames at ${safeFramesPerSecond}fps (${safeResolution})`);
-
-        const [maskFile, trimmedVideo] = await Promise.all([
-          generateMaskVideo(
-            masks,
-            mediaFile.width || 1920,
-            mediaFile.height || 1080,
-            safeNumFrames,
-            safeFramesPerSecond,
-            safeResolution,
-            (progress) => contentFillStore.updateJob(jobId, { progress: Math.round(progress * 0.1) })
-          ),
-          trimVideo(
-            mediaFile.file,
-            element.trimStart,
-            element.duration - element.trimStart - element.trimEnd,
-            (progress) => contentFillStore.addJobLog(jobId, `Trimming video: ${Math.round(progress)}%`)
-          )
-        ]);
-
-        contentFillStore.addJobLog(jobId, 'Generating masked source video...');
-        const maskedSourceVideo = await generateMaskedSourceVideo(
-          trimmedVideo,
+        // Calculate trimmed duration for the mask video
+        const trimmedDuration = element.duration - element.trimStart - element.trimEnd;
+        const trimmedFrameCount = Math.round(trimmedDuration * safeFramesPerSecond);
+        
+        // Generate mask video (black and white) with correct duration
+        contentFillStore.addJobLog(jobId, 'Generating mask video...');
+        const maskFile = await generateMaskVideo(
           masks,
           mediaFile.width || 1920,
           mediaFile.height || 1080,
-          (progress) => contentFillStore.addJobLog(jobId, `Applying grey mask: ${Math.round(progress)}%`)
+          trimmedFrameCount, // Use trimmed frame count
+          safeFramesPerSecond,
+          safeResolution,
+          (progress) => contentFillStore.updateJob(jobId, { progress: Math.round(10 + progress * 0.4) }) // 10-50%
         );
+        contentFillStore.addJobLog(jobId, '✅ Mask video generated.');
+        
+        // Process source video (trim + apply grey mask in ONE operation)
+        contentFillStore.addJobLog(jobId, 'Processing source video (trim + grey mask)...');
+        const { processVideoForContentFill } = await import('@/lib/video-processor-unified');
+        
+        const processedSourceVideo = await processVideoForContentFill(
+          mediaFile.file,
+          masks,
+          element.trimStart,
+          trimmedDuration,
+          mediaFile.width || 1920,
+          mediaFile.height || 1080,
+          (progress) => contentFillStore.updateJob(jobId, { progress: Math.round(50 + progress * 0.4) }) // 50-90%
+        );
+        contentFillStore.addJobLog(jobId, '✅ Source video processed (trimmed + grey mask applied).');
         
         // Debug: Log file information before upload
-        contentFillStore.addJobLog(jobId, `Source video: ${maskedSourceVideo.name} (${maskedSourceVideo.type}, ${Math.round(maskedSourceVideo.size / 1024)}KB)`);
+        contentFillStore.addJobLog(jobId, `Source video: ${processedSourceVideo.name} (${processedSourceVideo.type}, ${Math.round(processedSourceVideo.size / 1024)}KB)`);
         contentFillStore.addJobLog(jobId, `Mask video: ${maskFile.name} (${maskFile.type}, ${Math.round(maskFile.size / 1024)}KB)`);
         
         // Process with fal.ai
         contentFillStore.addJobLog(jobId, 'Submitting to fal.ai WAN-VACE 14B...');
         
         const result = await provider.processVideo(
-          maskedSourceVideo,
+          processedSourceVideo,
           maskFile,
           parameters,
           (progress) => {
-            contentFillStore.updateJob(jobId, { progress: Math.round(10 + progress * 0.9) });
+            contentFillStore.updateJob(jobId, { progress: Math.round(90 + progress * 0.1) }); // 90-100%
           },
           (log) => {
             contentFillStore.addJobLog(jobId, log);

@@ -32,36 +32,35 @@ export async function POST(request: NextRequest) {
       size: file.size
     });
 
-    // Ensure proper file extension and type for video files
+    // Force proper video file format for all uploads
     let uploadFile = file;
-    if (file.type.startsWith('video/') || file.name.includes('video') || !file.type) {
-      console.log("Processing video file for upload...");
-      
-      // Ensure proper MIME type
-      let mimeType = file.type;
-      if (!mimeType || mimeType === 'application/octet-stream') {
-        mimeType = 'video/mp4';
-        console.log("Fixed MIME type to:", mimeType);
+    let filename = file.name;
+    let mimeType = file.type;
+
+    // Ensure .mp4 extension
+    if (!filename.endsWith('.mp4')) {
+      // Remove any existing extension and add .mp4
+      filename = filename.replace(/\.[^.]*$/, '') + '.mp4';
+      if (!filename.includes('.')) {
+        filename += '.mp4';
       }
-      
-      // Ensure proper extension
-      let filename = file.name;
-      if (!filename.match(/\.(mp4|mov|avi|webm)$/i)) {
-        const extension = mimeType.includes('mp4') ? '.mp4' : '.mp4';
-        filename = filename.replace(/\.[^.]*$/, '') + extension; // Replace existing extension
-        if (!filename.includes('.')) {
-          filename += extension; // Add extension if none exists
-        }
-        console.log("Fixed filename:", filename);
-      }
-      
-      uploadFile = new File([file], filename, { type: mimeType });
-      console.log("Final upload file:", {
-        name: uploadFile.name,
-        type: uploadFile.type,
-        size: uploadFile.size
-      });
+      console.log("Fixed filename to:", filename);
     }
+
+    // Force video/mp4 MIME type
+    if (!mimeType || !mimeType.startsWith('video/')) {
+      mimeType = 'video/mp4';
+      console.log("Fixed MIME type to:", mimeType);
+    }
+
+    // Create new file with corrected properties
+    uploadFile = new File([file], filename, { type: mimeType });
+    
+    console.log("Final upload file:", {
+      name: uploadFile.name,
+      type: uploadFile.type,
+      size: uploadFile.size
+    });
 
     // Upload file using fal.ai client
     const fileUrl = await fal.storage.upload(uploadFile);

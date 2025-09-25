@@ -1,14 +1,17 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { toBlobURL } from "@ffmpeg/util";
 import { MaskShape } from "@/types/content-fill";
 
-let ffmpegInstance: FFmpeg | null = null;
-
-async function getFFmpeg(): Promise<FFmpeg> {
-  if (ffmpegInstance) return ffmpegInstance;
+async function getNewFFmpegInstance(): Promise<FFmpeg> {
+  const ffmpeg = new FFmpeg();
   
-  ffmpegInstance = new FFmpeg();
-  await ffmpegInstance.load();
-  return ffmpegInstance;
+  const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd"
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+  });
+
+  return ffmpeg;
 }
 
 export async function generateMaskVideo(
@@ -20,21 +23,8 @@ export async function generateMaskVideo(
   targetResolution: "480p" | "580p" | "720p" = "720p",
   onProgress?: (progress: number) => void
 ): Promise<File> {
-  console.log("Generating mask video with FFmpeg...", {
-    videoWidth,
-    videoHeight,
-    frameCount,
-    fps,
-    targetResolution,
-    masksCount: masks.length
-  });
 
-  // Use original video dimensions - fal.ai will handle resolution scaling
-  const targetDimensions = { width: videoWidth, height: videoHeight };
-  
-  console.log("Using original video dimensions for mask:", targetDimensions);
-
-  const ffmpeg = await getFFmpeg();
+  const ffmpeg = await getNewFFmpegInstance();
 
   if (onProgress) {
     ffmpeg.on("progress", ({ progress }) => {
@@ -43,54 +33,54 @@ export async function generateMaskVideo(
   }
 
   try {
-    // Create a canvas to draw the mask frame with target dimensions
+    const uniqueId = `mask_gen_${Date.now()}`;
+    const inputFilename = `${uniqueId}_mask.png`;
+    const outputFilename = `${uniqueId}_mask_video.mp4`;
+
     const canvas = document.createElement("canvas");
-    canvas.width = targetDimensions.width;
-    canvas.height = targetDimensions.height;
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
     const ctx = canvas.getContext("2d");
     
     if (!ctx) {
       throw new Error("Could not create canvas context");
     }
 
-    // Create mask frame
-    // Fill with black (areas to keep)
+    // Start with black background (areas to keep)
     ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, targetDimensions.width, targetDimensions.height);
+    ctx.fillRect(0, 0, videoWidth, videoHeight);
     
-    // Draw masks in white (areas to inpaint) using direct video coordinates
+    console.log(`Drawing ${masks.length} masks in white on ${videoWidth}x${videoHeight} canvas`);
+    
+    // Draw masks in white (areas to inpaint)
     ctx.fillStyle = "white";
     masks.forEach((mask, index) => {
-      console.log(`Drawing mask ${index}:`, mask);
-      
+      console.log(`Drawing mask ${index + 1}/${masks.length}:`, mask.type, mask.points.length, 'points');
       if (mask.type === "rectangle" && mask.points.length >= 2) {
         const x = Math.min(mask.points[0].x, mask.points[1].x);
         const y = Math.min(mask.points[0].y, mask.points[1].y);
         const width = Math.abs(mask.points[1].x - mask.points[0].x);
         const height = Math.abs(mask.points[1].y - mask.points[0].y);
         
-        console.log(`Rectangle mask: x=${x}, y=${y}, width=${width}, height=${height}`);
-        console.log(`Canvas dimensions: ${targetDimensions.width}x${targetDimensions.height}`);
-        
         // Clamp coordinates to canvas bounds
-        const clampedX = Math.max(0, Math.min(x, targetDimensions.width));
-        const clampedY = Math.max(0, Math.min(y, targetDimensions.height));
-        const clampedWidth = Math.min(width, targetDimensions.width - clampedX);
-        const clampedHeight = Math.min(height, targetDimensions.height - clampedY);
+        const clampedX = Math.max(0, Math.min(x, videoWidth));
+        const clampedY = Math.max(0, Math.min(y, videoHeight));
+        const clampedWidth = Math.min(width, videoWidth - clampedX);
+        const clampedHeight = Math.min(height, videoHeight - clampedY);
         
-        console.log(`Clamped rectangle: x=${clampedX}, y=${clampedY}, width=${clampedWidth}, height=${clampedHeight}`);
+        console.log(`Rectangle: original(${x},${y},${width},${height}) -> clamped(${clampedX},${clampedY},${clampedWidth},${clampedHeight})`);
         
         ctx.fillRect(clampedX, clampedY, clampedWidth, clampedHeight);
       } else if (mask.type === "brush" && mask.points.length > 1) {
         ctx.beginPath();
         ctx.moveTo(
-          Math.max(0, Math.min(mask.points[0].x, targetDimensions.width)),
-          Math.max(0, Math.min(mask.points[0].y, targetDimensions.height))
+          Math.max(0, Math.min(mask.points[0].x, videoWidth)),
+          Math.max(0, Math.min(mask.points[0].y, videoHeight))
         );
         for (let i = 1; i < mask.points.length; i++) {
           ctx.lineTo(
-            Math.max(0, Math.min(mask.points[i].x, targetDimensions.width)),
-            Math.max(0, Math.min(mask.points[i].y, targetDimensions.height))
+            Math.max(0, Math.min(mask.points[i].x, videoWidth)),
+            Math.max(0, Math.min(mask.points[i].y, videoHeight))
           );
         }
         ctx.lineWidth = mask.strokeWidth || 20;
@@ -100,7 +90,10 @@ export async function generateMaskVideo(
       }
     });
 
-    // Convert canvas to PNG blob
+    // Debug: Create a data URL to inspect the mask
+    const maskDataUrl = canvas.toDataURL();
+    console.log("Generated mask preview (copy to browser to inspect):", maskDataUrl.substring(0, 100) + "...");
+    
     const maskImageBlob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
@@ -108,94 +101,40 @@ export async function generateMaskVideo(
       }, "image/png");
     });
 
-    // Debug: Create a data URL to inspect the mask
-    const maskDataUrl = canvas.toDataURL();
-    console.log("Generated mask preview (copy this to browser to inspect):", maskDataUrl.substring(0, 100) + "...");
-    
-    // Optionally download the mask for inspection (uncomment for debugging)
-    // const debugLink = document.createElement('a');
-    // debugLink.href = maskDataUrl;
-    // debugLink.download = 'debug_mask.png';
-    // debugLink.click();
-
-    // Write mask image to FFmpeg
     const maskImageData = new Uint8Array(await maskImageBlob.arrayBuffer());
-    await ffmpeg.writeFile("mask.png", maskImageData);
+    await ffmpeg.writeFile(inputFilename, maskImageData);
 
-    // Validate parameters
-    if (!frameCount || frameCount <= 0) {
-      throw new Error(`Invalid frameCount: ${frameCount}`);
-    }
-    if (!fps || fps <= 0) {
-      throw new Error(`Invalid fps: ${fps}`);
-    }
-
-    // Calculate video duration
     const durationSeconds = frameCount / fps;
-    console.log(`Calculating duration: ${frameCount} frames / ${fps} fps = ${durationSeconds} seconds`);
 
-    // Validate duration
-    if (!durationSeconds || durationSeconds <= 0) {
-      throw new Error(`Invalid duration calculated: ${durationSeconds} seconds`);
-    }
-
-    // Generate mask video using FFmpeg
-    // Create a video from the single mask image, repeated for the duration
     const ffmpegArgs = [
-      "-loop", "1",                    // Loop the input image
-      "-i", "mask.png",               // Input mask image
-      "-t", durationSeconds.toString(), // Duration in seconds
-      "-r", fps.toString(),           // Frame rate
-      "-vf", `scale=${targetDimensions.width}:${targetDimensions.height}`, // Use original dimensions
-      "-c:v", "libx264",              // H.264 codec
-      "-pix_fmt", "yuv420p",          // Pixel format
-      "-y",                           // Overwrite output
-      "mask_video.mp4"                // Output filename
+      "-loop", "1",
+      "-i", inputFilename,
+      "-t", durationSeconds.toString(),
+      "-r", fps.toString(),
+      "-vf", `scale=${videoWidth}:${videoHeight}`,
+      "-c:v", "libx264",
+      "-pix_fmt", "yuv420p",
+      "-y",
+      outputFilename
     ];
-
-    console.log("FFmpeg command:", ffmpegArgs.join(" "));
 
     await ffmpeg.exec(ffmpegArgs);
 
-    // Read the generated mask video
-    const maskVideoData = await ffmpeg.readFile("mask_video.mp4");
+    const maskVideoData = await ffmpeg.readFile(outputFilename);
     
-    // Clean up temporary files
-    try {
-      await ffmpeg.deleteFile("mask.png");
-      await ffmpeg.deleteFile("mask_video.mp4");
-    } catch (cleanupError) {
-      console.warn("Failed to cleanup FFmpeg files:", cleanupError);
-    }
-
-    // Verify the generated video data
     if (!maskVideoData || maskVideoData.byteLength === 0) {
       throw new Error("FFmpeg generated empty video data");
     }
 
-    console.log("FFmpeg output size:", maskVideoData.byteLength, "bytes");
-
-    // Create and return the mask video file
     const maskVideoBlob = new Blob([maskVideoData], { type: "video/mp4" });
-    const maskVideoFile = new File([maskVideoBlob], "mask_video.mp4", { 
-      type: "video/mp4" 
-    });
+    return new File([maskVideoBlob], "mask_video.mp4", { type: "video/mp4" });
 
-    console.log("Mask video generated successfully:", {
-      size: maskVideoFile.size,
-      type: maskVideoFile.type,
-      name: maskVideoFile.name,
-      dataSize: maskVideoData.byteLength
-    });
-
-    // Verify the file is valid
-    if (maskVideoFile.size === 0) {
-      throw new Error("Generated mask video file is empty");
-    }
-
-    return maskVideoFile;
   } catch (error) {
     console.error("Failed to generate mask video:", error);
     throw new Error(`Mask video generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+  } finally {
+    if (ffmpeg.loaded) {
+      ffmpeg.terminate();
+    }
   }
 }
